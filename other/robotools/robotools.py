@@ -138,23 +138,56 @@ def parse_character_model(filename, texture_filename, output_folder=None, output
         "L arm": 10,
         "Neck": 9,
         "R hand": 5,
-        # "R hand 2": 5,
-        # "R hand 3": 5,
-        # "R hand 4": 5,
-        # "R hand 5": 5,
+        "R hand 2": 5,
+        "R hand 3": 5,
+        "R hand 4": 5,
+        "R hand 5": 5,
         "L hand": 12,
-        # "L hand 2": 12,
-        # "L hand 3": 12,
-        # "L hand 4": 12,
-        # "L hand 5": 12,
+        "L hand 2": 12,
+        "L hand 3": 12,
+        "L hand 4": 12,
+        "L hand 5": 12,
         "Head": 1,
         "Face": 1,
-        # "Face 2": 1,
-        # "Face 3": 1,
-        # "Face 4": 1,
+        "Face 2": 1,
+        "Face 3": 1,
+        "Face 4": 1,
     }
 
-    # bones = parse_bones(os.path.join("ddr5th_chara", "chara.pos"))
+    # manually calculated bone positions (for bind pose) with 5thMIX rig
+    BONE_POS_LOOKUP = {
+        "Pelvis": (0, 1061, 0),
+        "R upper leg": (77, 933, -24),
+        "R leg": (77, 525, -23),
+        "R foot": (77, 121, -23),
+        "L upper leg": (-77, 933, -24),
+        "L leg": (-77, 525, -23),
+        "L foot": (-77, 121, -23),
+        "Torso": (0, 1061, 0),
+        "R upper arm": (146, 1358, 12),
+        "R arm": (443, 1352, -5),
+        "L upper arm": (-146, 1358, 12),
+        "L arm": (-443, 1352, -5),
+        "Neck": (0, 1375, -7),
+        "R hand": (651, 1352, -5),
+        "R hand 2": (651, 1352, -5),
+        "R hand 3": (651, 1352, -5),
+        "R hand 4": (651, 1352, -5),
+        "R hand 5": (651, 1352, -5),
+        "L hand": (-651, 1352, -5),
+        "L hand 2": (-651, 1352, -5),
+        "L hand 3": (-651, 1352, -5),
+        "L hand 4": (-651, 1352, -5),
+        "L hand 5": (-651, 1352, -5),
+        "Head": (0, 1494, 1),
+        "Face": (0, 1494, 1),
+        "Face 2": (0, 1494, 1),
+        "Face 3": (0, 1494, 1),
+        "Face 4": (0, 1494, 1),
+    }
+
+    bones = parse_bones(os.path.join("ddr5th_chara", "chara.pos"))
+    # return
     all_vertices = []
 
     vertex_colors = {}
@@ -218,6 +251,8 @@ def parse_character_model(filename, texture_filename, output_folder=None, output
             bones = []
 
             for i in range(0, cnt * 8, 8):
+                bone_name = mesh_name
+
                 vxy = int.from_bytes(data[offset+i:offset+i+4], 'little')
                 vz = int.from_bytes(data[offset+i+4:offset+i+6], 'little')
                 linked = int.from_bytes(data[offset+i+6:offset+i+8], 'little')
@@ -226,19 +261,39 @@ def parse_character_model(filename, texture_filename, output_folder=None, output
                 y = int.from_bytes(data[offset+i+2:offset+i+4], 'little', signed=True)
                 z = int.from_bytes(data[offset+i+4:offset+i+6], 'little', signed=True)
 
-                x = x / VERTEX_SCALE
-                y = (y * -1) / VERTEX_SCALE
+                offset_x, offset_y, offset_z = BONE_POS_LOOKUP.get(bone_name, (0, 0, 0))
 
-                if output_format != "stepmania":
-                    z = (z + (cur_mesh_idx * 750)) / VERTEX_SCALE
+                x = -x
+                y = -y
+                z = z
 
-                else:
-                    z = (z * -1) / VERTEX_SCALE
+                if bone_name == "R upper arm" or bone_name == "R arm" or bone_name.startswith("R hand"):
+                    tmp = x;
+                    x = -y;
+                    y = tmp;
+
+                if bone_name == "L upper arm" or bone_name == "L arm" or bone_name.startswith("L hand"):
+                    tmp = -x;
+                    x = y;
+                    y = tmp;
+
+                x += offset_x;
+                y += offset_y;
+                z += offset_z;
+
+                x /= VERTEX_SCALE
+                y /= VERTEX_SCALE
+                z /= VERTEX_SCALE
+
+                # if output_format != "stepmania":
+                    # z = (z + (cur_mesh_idx * 750)) / VERTEX_SCALE
+
+                # else:
+                    # z = (z * -1) / VERTEX_SCALE
 
                 logging.info("\t\t%d vxy[%08x] vz[%04x] x[%f] y[%f] z[%f] linked[%d]" % (i // 8, vxy, vz, x, y, z, linked))
 
-                bone_name = mesh_name
-                if i // 8 >= unique_cnt and output_format == "stepmania":
+                if i // 8 >= unique_cnt:
                     if linked >= len(all_vertices):
                         # This might mean that the vertexes need to be linked after everything is parsed fully once
                         logging.error("Couldn't find linked vertex %d" % linked)
@@ -648,24 +703,24 @@ def parse_character_model(filename, texture_filename, output_folder=None, output
 
 def parse_bones(filename):
     # Expects chara.pos.
-    # Bones? The values change how the body parts are place relative to the torso in-game but not quite bones maybe.
+    # Bones are relatively positioned, parents noted in comments
     BONE_NAMES = [
-        "Unknown", # Has no effect in-game when changed?
-        "L upper leg",
-        "L leg",
-        "L foot",
-        "R upper leg",
-        "R leg",
-        "R foot",
-        "Torso",
-        "L upper arm",
-        "L arm",
-        "R upper arm",
-        "R arm",
-        "Neck",
-        "L hand",
-        "R hand",
-        "Head",
+        "Pelvis", # root node
+        "L upper leg", # child of Pelvis
+        "L leg", # child of L upper leg
+        "L foot", # child of L leg
+        "R upper leg", # child of Pelvis
+        "R leg", # child of R upper leg
+        "R foot", # child of R leg
+        "Torso", # child of Pelvis
+        "L upper arm", # rotated 90 degrees, child of Torso
+        "L arm", # child of L upper arm
+        "R upper arm", # rotated 90 degrees, child of Torso
+        "R arm", # child of R upper arm
+        "Neck", # child of Torso
+        "L hand", # child of L arm
+        "R hand", # child of R arm
+        "Head", # child of Neck
     ]
 
     data = bytearray(open(filename, "rb").read())
@@ -677,15 +732,12 @@ def parse_bones(filename):
 
     i = 0
     while data:
-        import hexdump
-        hexdump.hexdump(data[:6])
-
         x = int.from_bytes(data[0:2], 'little', signed=True)
         y = int.from_bytes(data[2:4], 'little', signed=True)
         z = int.from_bytes(data[4:6], 'little', signed=True)
         data = data[6:]
 
-        logging.info("%02x" % i, BONE_NAMES[i], x, y, z)
+        logging.info("%i: %s: (%i, %i, %i)" % (i, BONE_NAMES[i], x, y, z))
 
         bones[BONE_NAMES[i]] = (x, y, z)
 
@@ -697,6 +749,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--input-model', help='Input model filename', default=None, required=True)
     parser.add_argument('--input-texture', help='Input texture filename', default=None)
+    parser.add_argument('--input-rig', help='Input rig (chara.pos) filename', default=None)
     parser.add_argument('--output', help='Output folder', default=None)
     parser.add_argument('--output-format', help='Output format', default="stepmania", choices=["stepmania", "obj", "glb", "gltf"])
     parser.add_argument('--face-count', help='Number of faces in texture', default=4, type=int)
